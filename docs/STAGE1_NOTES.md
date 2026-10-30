@@ -94,7 +94,7 @@ These stay at the default. The reason is part of the method, not "we did not loo
 | Key | Default, kept | Why it stays |
 | --- | --- | --- |
 | `imgsz` | 640 | Pretrained resolution, and VRAM is unknown. 1024 and 1280 are a later locked experiment, not a silent change. See section 4. |
-| `scale` | 0.5 | A float is a gain. `RandomPerspective` draws the factor with `random.uniform(1 - scale, 1 + scale)`. For 0.5 that is the half-open range from 0.5 up to, but not including, 1.5. Do not increase it. A smaller gain keeps object scale closer to the original; that would be a separate three-model experiment after box sizes are known. |
+| `scale` | 0.5 | A float is a gain. `RandomPerspective` draws the factor with `random.uniform(1 - scale, 1 + scale)`. The class docstring in this release says a float of 0.5 means resize between 50% and 150%. Do not increase it. A smaller gain keeps object scale closer to the original; that would be a separate three-model experiment after box sizes are known. |
 | `mosaic` | 1.0 | 2x2 mosaic (`Mosaic` default `n=4`). `apply_image` builds a canvas of `2*imgsz` by `2*imgsz`. The following affine warps that canvas to `imgsz`, so objects are drawn from a four-image canvas and can be clipped. This is the library's small-object augmentation. |
 | `close_mosaic` | 10 | For the last 10 epochs the loader sets mosaic, copy_paste, mixup, and cutmix to 0 and rebuilds. With `epochs=100` that is epochs 90 through 99. The last epochs see one image at `imgsz`. |
 | `degrees` | 0.0 | Off. After the affine, `box_candidates` drops a box whose new width or height is `<= 2` pixels, or whose area is below 10% of the original when there are no segment polygons (`area_thr=0.10`; segment labels use 0.01). Eggs and larvae would be dropped first. |
