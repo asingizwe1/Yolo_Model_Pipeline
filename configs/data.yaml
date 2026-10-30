@@ -1,0 +1,62 @@
+# BeeComb detection dataset (Roboflow project BeeComb).
+# Ultralytics 8.4.193 reads this file in check_det_dataset (ultralytics/data/utils.py).
+#
+# Layout after the Roboflow YOLO export is placed at the repository root:
+#   data/train/images, data/train/labels
+#   data/valid/images, data/valid/labels
+#   data/test/images,  data/test/labels
+# The export already has a train/valid/test split made by source video.
+# Do not reshuffle, do not call ultralytics.data.split, and do not set fraction
+# below 1.0. Later download code only copies that export into data/.
+#
+# The YAML key for the validation split is `val`. Roboflow's folder is `valid`.
+# Pointing val at valid/images is the mapping. Do not rename the folder to val
+# and do not leave a `valid:` key: this version renames `validation` to `val`,
+# but it does not rename `valid`.
+#
+# path is relative to the repository root, not to this file and not to the
+# process working directory. check_det_dataset does the following:
+#   1. path = the yaml `path`, or the yaml file's parent if path is missing.
+#   2. If that path is relative AND does not exist, it is replaced by
+#      <Ultralytics datasets dir>/path. That happens when training is launched
+#      from a folder other than the repo root, which is easy on Windows.
+#   3. train/val/test are then joined onto path and Path.resolve() is called,
+#      which produces an absolute path with the native separator
+#      (backslashes on Windows).
+# Use forward slashes in this file. pathlib accepts them on Windows.
+# The label finder replaces the last `\images\` (or `/images/` on Linux) with
+# `\labels\`, so the directory must be named `images`. A flattened folder of
+# jpg files will not find its txt files.
+#
+# Helper the later scripts must run before YOLO sees this file
+# (not written in Stage 1; contract is fixed here):
+#   repo = Path(__file__).resolve().parents[1]   # repository root, not cwd
+#   cfg = YAML.load(repo / "configs" / "data.yaml")
+#   root = (repo / cfg["path"]).resolve()        # absolute data/
+#   cfg["path"] = str(root)                      # native separators
+#   out = repo / "runs" / "_resolved_data.yaml"  # gitignored
+#   YAML.dump the cfg to out, and pass `data=str(out)` to train.
+# An absolute path that exists skips step 2 above. Launching from another
+# drive or from a shortcut then still finds data/. Do not hand-edit the
+# resolved file; edit this one.
+
+path: data
+
+train: train/images
+val: valid/images
+test: test/images
+
+nc: 7
+names:
+  0: bee bread
+  1: honey
+  2: capped honey
+  3: worker capped brood
+  4: capped drone brood
+  5: eggs
+  6: larvae
+
+# Index order is the order given for this project. Label txt files store the
+# integer, not the name. Before the first real train, confirm the Roboflow
+# export uses this same index order. Do not reorder names to match a paper
+# figure without rewriting every label file.

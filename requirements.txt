@@ -1,0 +1,13 @@
+# Shared comparison environment.
+# Pin ultralytics. Every default cited in configs/base.yaml and docs/STAGE1_NOTES.md
+# was read from this exact release (ultralytics/cfg/default.yaml and the trainer).
+# Do not upgrade mid-comparison. A newer release can change default.yaml and the
+# optimizer='auto' rule.
+ultralytics==8.4.193
+
+# torch and torchvision are installed as dependencies of ultralytics.
+# On Windows, install a CUDA wheel that matches the NVIDIA driver before training.
+# The Stage 1 CPU smoke test (Linux) imported torch 2.15.0+cu132. That wheel is
+# not the Windows GPU build. FILL the real Python, driver, and CUDA versions
+# after scripts/env_report.py exists; do not copy the Linux smoke versions into
+# the paper as the training environment.

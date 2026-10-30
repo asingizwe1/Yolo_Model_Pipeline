@@ -1,0 +1,102 @@
+# Shared detection recipe for the three BeeComb models in configs/models.yaml.
+# Ultralytics 8.4.193. Defaults below were copied from the installed file
+# ultralytics/cfg/default.yaml and checked against the trainer. Argument
+# reference: https://docs.ultralytics.com/usage/cfg/
+#
+# Every key here is identical for yolov8s.pt, yolo11s.pt, and yolov8m.pt.
+# Later scripts may pass model, data, and name. They must not override any
+# key in this file for only one model.
+#
+# Leave `project` unset. Ultralytics joins a relative project onto
+# <runs_dir>/<task>/, and runs_dir defaults to "runs". A name of yolov8s
+# therefore lands in runs/detect/yolov8s when you launch from the repo root.
+# Passing project=runs as well nests a second runs/ folder. The Stage 1 smoke
+# did that on purpose (project=runs/smoke) and the checkpoint landed in
+# runs/detect/runs/smoke/coco8_cpu. Comparison runs should pass name only.
+#
+# Keys that are absent stay at the 8.4.193 default. In particular, leave
+# `time` unset (a set value replaces epochs) and leave `conf` unset
+# (validation then uses 0.001). Do not rebuild or subsample the Roboflow
+# split: fraction is pinned to 1.0, and the split was made by source video.
+#
+# FILL on the Windows GPU machine before the real comparison, then edit
+# this file once:
+#   GPU model, total VRAM, driver, CUDA, Python version.
+#   batch: the integer AutoBatch reports for yolov8m.pt (the largest model).
+# The number 16 below is the library default, not a measurement.
+
+# --- task and initialization ---
+task: detect # DEFAULT detect. Kept. Box detection. Not segment, pose, or classify.
+pretrained: True # DEFAULT True. Kept. Why: all three runs load the official COCO pretrained checkpoint named in configs/models.yaml. The class-output convolution is rebuilt for nc=7 (see STAGE1_NOTES). Same rule for every model.
+cls_remap: True # DEFAULT True. Kept. Why: name-based class-head remap runs only when a BeeComb name matches a COCO name. None do, so this is a no-op, and leaving it on cannot favor one model.
+
+# --- schedule ---
+epochs: 100 # DEFAULT 100. Kept. Fixed budget so the three models see the same number of epochs.
+patience: 0 # DEFAULT 100. Why: 0 disables early stopping (EarlyStopping treats 0 as infinite). The three models then always run `epochs` epochs. best.pt is still the best validation fitness. With the default, patience=100 does not fire inside a 100-epoch run, but it would if epochs were raised later.
+cos_lr: False # DEFAULT False. Kept. Linear decay from lr0 to lr0 * lrf. Cosine would be a separate experiment, applied to all three models or to none.
+
+# --- optimization (explicit; do not use optimizer=auto) ---
+optimizer: SGD # DEFAULT auto. Why: auto ignores lr0 and replaces both the optimizer and lr0. It also sets momentum to 0.9 and warmup_bias_lr to 0.0. The choice is MuSGD when the estimated step count exceeds 10000, otherwise AdamW with an lr that depends on nc. An explicit SGD makes the lr0 and momentum below the values that actually train, for every model, at any dataset size. SGD is the optimizer the default lr0=0.01 and momentum=0.937 were written for.
+lr0: 0.01 # DEFAULT 0.01. Kept. Used because optimizer is SGD. The default.yaml comment documents SGD=0.01 and Adam/AdamW=0.001. Auto would have discarded this value.
+lrf: 0.01 # DEFAULT 0.01. Kept. Final learning rate is lr0 * lrf = 0.0001.
+momentum: 0.937 # DEFAULT 0.937. Kept. SGD momentum. Auto would replace it with 0.9. The trainer builds SGD with nesterov=True.
+weight_decay: 0.0005 # DEFAULT 0.0005. Kept. Applied to weights only (not BatchNorm, not bias). The trainer multiplies it by batch * accumulate / nbs, which equals 1 when batch * round(nbs / batch) == nbs.
+warmup_epochs: 3.0 # DEFAULT 3.0. Kept. Fraction of an epoch is allowed. Revisit for all models together if the train split is very small, because 3 epochs is then a large part of the budget.
+warmup_momentum: 0.8 # DEFAULT 0.8. Kept. Momentum rises from this value to `momentum` during warmup.
+warmup_bias_lr: 0.1 # DEFAULT 0.1. Kept. Bias lr falls from this value to lr0 during warmup. Auto would set this to 0.0; explicit SGD keeps 0.1.
+nbs: 64 # DEFAULT 64. Kept. Nominal batch size. Gradients are accumulated for round(nbs / batch) micro-batches, and weight decay is scaled by batch * accumulate / nbs. This is how a smaller VRAM batch still aims at a 64-image optimizer step. It does not make BatchNorm see 64 images.
+
+# --- loss gains (detection) ---
+box: 7.5 # DEFAULT 7.5. Kept. Box-loss gain.
+cls: 0.5 # DEFAULT 0.5. Kept. Classification-loss gain.
+cls_pw: 0.0 # DEFAULT 0.0. Kept. 0 disables inverse-frequency class weights. Do not turn this on for one model after seeing class counts. A later change has to be applied to all three.
+dfl: 1.5 # DEFAULT 1.5. Kept. Distribution-focal box loss gain.
+
+# --- image size, batch, device ---
+imgsz: 640 # DEFAULT 640. Kept for this locked recipe. Why: it is the resolution the pretrained checkpoints were trained at, and VRAM is still unknown (FILL). 1024 is 2.56x the pixel count and 1280 is 4x, so activation memory grows by about that factor. Raise imgsz only after AutoBatch on yolov8m still leaves a usable batch, and raise it for all three models together. 640, 1024, and 1280 are all multiples of stride 32.
+batch: 16 # DEFAULT 16. PLACEHOLDER, not a measured batch. Why it is still 16: no GPU was available to run AutoBatch, so the library default stays until it is replaced. Before the comparison, run AutoBatch once on yolov8m.pt with batch=-1 (60% of free GPU memory) or batch=0.70, then write that integer here. Do not leave -1 or a fraction in this file. Those modes profile each model separately and would give yolov8s a larger batch than yolov8m. The largest model sets the shared integer.
+device: 0 # DEFAULT null, which means auto-select. Why: training is on the single NVIDIA GPU, and auto-select could move if another device is visible. Integer 0 is parsed as device string "0". The CPU smoke test overrode this to cpu and did not change this file.
+workers: 2 # DEFAULT 8. Why: Windows starts DataLoader workers with spawn. A conservative ceiling avoids spawn storms and is part of the recipe, because worker count changes which worker RNG augments which image. The loader further caps workers by CPU count and by the number of batches. On CPU the trainer forces workers=0. Later scripts need an `if __name__ == "__main__":` guard or spawn will re-import the training script.
+seed: 0 # DEFAULT 0. Kept. The trainer calls init_seeds(seed + 1 + RANK). RANK is -1 for a single process, so the torch seed equals this value on one GPU. The same seed is used for every model.
+deterministic: True # DEFAULT True. Kept. Turns on deterministic algorithms with warn_only, cuDNN deterministic mode, CUBLAS_WORKSPACE_CONFIG=:4096:8, and PYTHONHASHSEED. This does not guarantee bitwise equality on GPU. See STAGE1_NOTES.
+cache: False # DEFAULT False. Kept. Why: caching does not change labels, but cache=True (RAM) can exhaust a Windows machine whose VRAM and RAM are still unknown. Leave this off until check_data.py has reported the dataset size.
+rect: False # DEFAULT False. Kept. Why: rect=True turns mosaic, mixup, and cutmix off for training. Validation already uses rectangular batches in the detection trainer; that path is separate and stays as Ultralytics wrote it.
+single_cls: False # DEFAULT False. Kept. Seven classes. True would collapse them to one class named "item".
+fraction: 1.0 # DEFAULT 1.0. Kept. Why: train on every image in the Roboflow train split. A value below 1 subsamples. Do not use fraction to invent a new split.
+multi_scale: 0.0 # DEFAULT 0.0. Kept. Why: a fixed imgsz keeps memory and the batch probe meaningful. Multi-scale also changes size every batch and can produce a one-image batch at a very small size, which BatchNorm rejects.
+amp: True # DEFAULT True. Kept. Mixed precision on CUDA. The same flag is used for all three models. AMP is disabled automatically on CPU, and check_amp also disables it on some GeForce GTX 16-series and T-series GPUs. Read the AMP log line; the saved args can still say True after a failed check. Exact bitwise reproducibility is not claimed while AMP is on.
+compile: False # DEFAULT False. Kept. torch.compile can change numerics and the first-epoch memory profile. Off for the comparison.
+channels_last: False # DEFAULT null. Why: null turns channels-last on automatically for CUDA training outside Windows. It is not auto-enabled on Windows. Pinning False makes a Linux or macOS rerun follow the Windows machine.
+
+# --- augmentation ---
+# Color is a class cue (honey, capped honey, bee bread, brood). hsv_* stay at
+# the defaults for the first locked comparison. Do not lower them for one model.
+hsv_h: 0.015 # DEFAULT 0.015. Kept. Small hue jitter. A large hue gain would repaint honey and brood.
+hsv_s: 0.7 # DEFAULT 0.7. Kept. Strong saturation jitter. Open question after the first comparison: whether honey versus capped honey needs a lower gain, changed for all models together.
+hsv_v: 0.4 # DEFAULT 0.4. Kept. Brightness jitter. Same caveat as hsv_s. Lighting in the source videos is unknown.
+degrees: 0.0 # DEFAULT 0.0. Kept. Why: rotation is off. After the affine, a box is dropped when its width or height is <= 2 pixels, or when its area falls below 10% of the original (box-only labels). Eggs and larvae are the boxes that would be deleted first. Do not add rotation until check_data.py has reported box sizes.
+translate: 0.1 # DEFAULT 0.1. Kept. Random shift of +/- 10% of the image. Boxes that leave the frame are clipped.
+scale: 0.5 # DEFAULT 0.5. Kept. A float is a gain: the affine samples a factor uniformly from 1-scale to 1+scale, so 0.5 means [0.5, 1.5]. Do not increase this. A later reduction (for example 0.3, meaning [0.7, 1.3]) is a separate experiment for all three models, and only after box-size statistics exist. A tuple (min, max) is also legal; this recipe uses the float default.
+shear: 0.0 # DEFAULT 0.0. Kept. Shear is off. It distorts boxes and is most harmful to small ones.
+perspective: 0.0 # DEFAULT 0.0. Kept. Perspective is off. The valid range in the docs is about 0 to 0.001. Nonzero perspective makes box filtering stricter and is not justified here.
+flipud: 0.5 # DEFAULT 0.0. Why: a comb frame from video has no reliable "up" in the image. COCO leaves this at 0 because people and vehicles have a gravity direction. Brood, honey, eggs, and larvae do not change class when the frame is turned upside down. 0.5 matches the default horizontal flip probability. If a class is later shown to be orientation-specific, set this back to 0.0 for all three models before any comparison run.
+fliplr: 0.5 # DEFAULT 0.5. Kept. Horizontal flip probability. Same orientation argument as flipud, and already the default.
+bgr: 0.0 # DEFAULT 0.0. Kept. Channel swap is off. Swapping R and B would change the color classes.
+mosaic: 1.0 # DEFAULT 1.0. Kept. Probability of the 2x2 mosaic (Mosaic n=4). The mosaic canvas is 2*imgsz on each side and the following affine warps it to imgsz, so objects occupy fewer pixels than in the final single-image epochs, and boxes can be clipped. That is accepted because close_mosaic turns it off at the end, and because mosaic is the default small-object augmentation. rect=True would force this to 0; rect stays False.
+close_mosaic: 10 # DEFAULT 10. Kept. For the last 10 epochs, mosaic, copy_paste, mixup, and cutmix are set to 0 and the loader is rebuilt. The last epochs train on one image at imgsz. With epochs=100 this is epochs 90-99.
+mixup: 0.0 # DEFAULT 0.0. Kept. MixUp blends two images and softens boxes. Leave it off for dense small objects.
+cutmix: 0.0 # DEFAULT 0.0. Kept. CutMix is off. It is a separate augmentation from mosaic.
+copy_paste: 0.0 # DEFAULT 0.0. Kept. Why: CopyPaste returns immediately when the image has no segment polygons or when this value is 0. Detection labels store boxes, and for task=detect the loader builds an empty segment array. A nonzero value would not paste objects on this dataset. copy_paste is documented as a segment/semantic/obb augmentation. Confirm on a real batch in check_data.py, but do not set this above 0 expecting a detection gain.
+copy_paste_mode: flip # DEFAULT flip. Kept. Unused while copy_paste is 0. Legal values are flip and mixup. Not a fairness lever at probability 0.
+
+# --- validation and checkpoints ---
+val: True # DEFAULT True. Kept. Validation every epoch, on the Roboflow val split only (the folder valid/images). The test split is not used during training.
+iou: 0.7 # DEFAULT 0.7. Kept. NMS IoU. Higher means overlapping boxes of the same class are kept more often. Adjacent cells usually have low IoU; heavily overlapping same-class boxes would need a higher iou, changed for all models together, after check_data.py. This is not a measured value.
+max_det: 300 # DEFAULT 300. Kept until object counts exist. NMS keeps at most this many boxes per image, so a frame with more than 300 objects cannot score all of them at validation. If check_data.py finds images above 300 boxes, raise this for all three models before training. Do not guess a number now.
+agnostic_nms: False # DEFAULT False. Kept. NMS is per class, so a honey region and the cells inside it can both remain. Class-agnostic NMS could delete one of them.
+save: True # DEFAULT True. Kept. Writes last.pt and best.pt under runs/. Those files are gitignored.
+save_period: -1 # DEFAULT -1. Kept. Negative disables intermediate epoch checkpoints.
+exist_ok: False # DEFAULT False. Kept. A repeated name creates runs/detect/train2 rather than overwriting. Later scripts should pass a distinct name per model.
+resume: False # DEFAULT False. Kept. The comparison starts from the pretrained checkpoints, not from a partial run.
+plots: True # DEFAULT True. Kept. Saves the label and metric plots a paper figure can use.
+verbose: True # DEFAULT True. Kept.

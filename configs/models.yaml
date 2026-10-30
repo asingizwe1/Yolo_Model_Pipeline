@@ -1,0 +1,25 @@
+# Editable list of detection checkpoints for the comparison.
+# Train every entry with the same configs/base.yaml and the same resolved
+# configs/data.yaml. Add or remove a model here only before the comparison
+# starts, then repeat the AutoBatch probe: the largest model sets `batch`.
+#
+# Parameter counts are the COCO nc=80 summaries printed in ultralytics 8.4.193
+# (cfg/models/v8/yolov8.yaml and cfg/models/11/yolo11.yaml). BeeComb has nc=7,
+# so the class-output layer is smaller. The order of size does not change:
+# yolov8m is the largest and is the VRAM limit.
+#
+# These names are official detection checkpoints (not -seg, -cls, or -pose).
+# The Stage 1 CPU smoke test used yolov8n.pt only to check that base.yaml
+# trains. yolov8n is not a candidate and must not appear in the paper table.
+
+models:
+  - name: yolov8s
+    weights: yolov8s.pt
+    # scale s: 11,166,560 parameters, 28.8 GFLOPs at nc=80
+  - name: yolo11s
+    weights: yolo11s.pt
+    # scale s: 9,458,752 parameters, 21.7 GFLOPs at nc=80
+  - name: yolov8m
+    weights: yolov8m.pt
+    # scale m: 25,902,640 parameters, 79.3 GFLOPs at nc=80
+    # Largest. Run AutoBatch on this file. Write the integer into configs/base.yaml batch.

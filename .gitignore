@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# Secrets. Roboflow keys belong here, never in a yaml that is committed.
+.env
+.env.*
+!.env.example
+
+# Ultralytics download cache if settings.datasets_dir points inside the repo.
+datasets/
+
+# Dataset payload. The folder skeleton (*/.gitkeep) stays in git.
+# Roboflow's own data.yaml, images, labels, and Ultralytics *.cache files do not.
+data/**
+!data/**/
+!data/**/.gitkeep
+
+# Training outputs and exported predictions.
+runs/**
+!runs/**/
+!runs/.gitkeep
+results/**
+!results/**/
+!results/.gitkeep
+
+# Weights and export artifacts. Comparison checkpoints live under runs/ and are not committed.
+*.pt
+*.pth
+*.onnx
+*.engine
+*.torchscript
+*.tflite
+*.mlpackage
+*.mnn
+*.ncnn
+*.bin
+*.param
+
+# Ultralytics label caches wherever a script is launched
+*.cache
+
+# OS / editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
